@@ -81,6 +81,8 @@ interface AppState {
   renameFolder: (id: string, name: string) => void;
   createRecord: (folderId: string, templateId?: string) => string;
   updateRecord: (id: string, data: Partial<RecordItem>) => void;
+  batchUpdateRecords: (ids: string[], data: Partial<RecordItem>) => void;
+  batchDeleteRecords: (ids: string[]) => void;
   deleteRecord: (id: string) => void;
   saveRecordContent: (id: string, content: Record<string, unknown>) => void;
   restoreFromTrash: (id: string) => void;
@@ -115,13 +117,21 @@ export const useStore = create<AppState>()((set, get) => ({
 
   // ── Init ──
   init: async () => {
+    console.log('[init] Starting...');
     const data = await loadAllData();
+    console.log('[init] loadAllData result:', data ? `folders=${data.folders.length} records=${data.records.length}` : 'NULL');
     if (data) {
       set({ ...data, initialized: true });
-      void seedIfEmpty();
+      console.log('[init] State set from Supabase, seeding...');
+      await seedIfEmpty();
+      const fresh = await loadAllData();
+      console.log('[init] Reload result:', fresh ? `records=${fresh.records.length}` : 'NULL');
+      if (fresh) set({ ...fresh });
     } else {
+      console.log('[init] Supabase unavailable, using mock data');
       set({ initialized: true });
     }
+    console.log('[init] Done. State records:', get().records.length);
 
     // Set up realtime subscription for changes from other clients
     subscribeToChanges(
@@ -143,11 +153,11 @@ export const useStore = create<AppState>()((set, get) => ({
           set((s) => {
             const exists = s.records.find((x) => x.id === r.id);
             if (exists) return s;
-            const rec: RecordItem = { id: r.id as string, recordNumber: r.record_number as string, title: r.title as string, content: (r.content as Record<string, unknown>) || {}, plainText: (r.plain_text as string) || '', folderId: r.folder_id as string, recordDate: r.record_date as string, productModel: (r.product_model as string) || '', processStation: (r.process_station as string) || '', defectCategory: (r.defect_category as string) || '', severity: (r.severity as never) || 'MINOR', disposition: (r.disposition as never) || 'REWORK', responsiblePerson: (r.responsible_person as string) || '', workOrderNumber: (r.work_order_number as string) || '', tags: (r.tags as string[]) || [], isArchived: (r.is_archived as boolean) || false, isTemplate: (r.is_template as boolean) || false, createdAt: r.created_at as string, updatedAt: r.updated_at as string };
+            const rec: RecordItem = { id: r.id as string, recordNumber: r.record_number as string, title: r.title as string, content: (r.content as Record<string, unknown>) || {}, plainText: (r.plain_text as string) || '', folderId: r.folder_id as string, recordDate: r.record_date as string, productModel: (r.product_model as string) || '', processStation: (r.process_station as string) || '', defectCategory: (r.defect_category as string) || '', severity: (r.severity as never) || 'MINOR', disposition: (r.disposition as never) || 'REWORK', rectificationStatus: (r.rectification_status as never) || 'NONE', responsiblePerson: (r.responsible_person as string) || '', workOrderNumber: (r.work_order_number as string) || '', tags: (r.tags as string[]) || [], isArchived: (r.is_archived as boolean) || false, isTemplate: (r.is_template as boolean) || false, createdAt: r.created_at as string, updatedAt: r.updated_at as string };
             return { records: [...s.records, rec] };
           });
         } else if (payload.eventType === 'UPDATE') {
-          set((s) => ({ records: s.records.map((x) => x.id === r.id ? { ...x, recordNumber: r.record_number as string, title: r.title as string, content: (r.content as Record<string, unknown>) || {}, plainText: (r.plain_text as string) || '', productModel: (r.product_model as string) || '', processStation: (r.process_station as string) || '', defectCategory: (r.defect_category as string) || '', severity: (r.severity as never) || x.severity, disposition: (r.disposition as never) || x.disposition, responsiblePerson: (r.responsible_person as string) || '', workOrderNumber: (r.work_order_number as string) || '', tags: (r.tags as string[]) || [], updatedAt: r.updated_at as string } : x) }));
+          set((s) => ({ records: s.records.map((x) => x.id === r.id ? { ...x, recordNumber: r.record_number as string, title: r.title as string, content: (r.content as Record<string, unknown>) || {}, plainText: (r.plain_text as string) || '', productModel: (r.product_model as string) || '', processStation: (r.process_station as string) || '', defectCategory: (r.defect_category as string) || '', severity: (r.severity as never) || x.severity, disposition: (r.disposition as never) || x.disposition, rectificationStatus: (r.rectification_status as never) || x.rectificationStatus, responsiblePerson: (r.responsible_person as string) || '', workOrderNumber: (r.work_order_number as string) || '', tags: (r.tags as string[]) || [], updatedAt: r.updated_at as string } : x) }));
         } else if (payload.eventType === 'DELETE') {
           const old = payload.old as Record<string, unknown>;
           set((s) => ({ records: s.records.filter((x) => x.id !== old.id) }));
@@ -271,7 +281,7 @@ export const useStore = create<AppState>()((set, get) => ({
       ]},
       plainText: '不良品处理记录 产品型号 缺陷分类 问题描述 原因分析 处理措施 验证结果 后续预防',
       folderId, recordDate: getTodayISO(), productModel: '', processStation: '', defectCategory: '',
-      severity: 'MINOR', disposition: 'REWORK', responsiblePerson: '', workOrderNumber: '',
+      severity: 'MINOR', disposition: 'REWORK', rectificationStatus: 'NONE', responsiblePerson: '', workOrderNumber: '',
       tags: [], isArchived: false, isTemplate: false,
       createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
     };
@@ -284,6 +294,24 @@ export const useStore = create<AppState>()((set, get) => ({
     set((s) => ({ records: s.records.map((r) => r.id === id ? { ...r, ...data, updatedAt: new Date().toISOString() } : r) }));
     const updated = get().records.find((r) => r.id === id);
     if (updated) void upsertRecord(updated);
+  },
+
+  batchUpdateRecords: (ids, data) => {
+    const idSet = new Set(ids);
+    set((s) => ({ records: s.records.map((r) => idSet.has(r.id) ? { ...r, ...data, updatedAt: new Date().toISOString() } : r) }));
+    const updated = get().records.filter((r) => idSet.has(r.id));
+    for (const r of updated) void upsertRecord(r);
+  },
+
+  batchDeleteRecords: (ids) => {
+    const state = get();
+    const idSet = new Set(ids);
+    const trashItems: TrashItem[] = state.records
+      .filter((r) => idSet.has(r.id) && !r.isTemplate)
+      .map((r) => ({ id: generateId(), originalId: r.id, itemType: 'RECORD' as const, originalName: r.title, originalParentId: r.folderId, deletedAt: new Date().toISOString(), originalData: { ...r } }));
+    set((s) => ({ records: s.records.filter((r) => !idSet.has(r.id)), trash: [...s.trash, ...trashItems], selectedRecordId: idSet.has(s.selectedRecordId || '') ? null : s.selectedRecordId }));
+    for (const id of ids) void deleteRecordDb(id);
+    for (const ti of trashItems) void upsertTrashItem(ti);
   },
 
   deleteRecord: (id) => {

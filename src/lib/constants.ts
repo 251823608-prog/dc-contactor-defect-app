@@ -1,4 +1,4 @@
-import type { DefectCategory, Severity, Disposition } from '../types';
+import type { DefectCategory, Severity, Disposition, RectificationStatus } from '../types';
 
 export const PRODUCT_MODELS = [
   { value: '陶瓷1000', label: '陶瓷1000', spec: '', app: '' },
@@ -125,6 +125,17 @@ export const DISPOSITION_OPTIONS: { value: Disposition; label: string }[] = [
   { value: 'CONCESSION', label: '让步接收' },
   { value: 'RETURN', label: '退货' },
 ];
+
+export const RECTIFICATION_STATUS_OPTIONS: { value: RectificationStatus; label: string; color: string }[] = [
+  { value: 'NONE', label: '无需整改', color: '#94a3b8' },
+  { value: 'PENDING', label: '待整改', color: '#f59e0b' },
+  { value: 'IN_PROGRESS', label: '整改中', color: '#3b82f6' },
+  { value: 'VERIFIED', label: '已验证', color: '#10b981' },
+];
+
+export function getRectificationStatusLabel(value: RectificationStatus): string {
+  return RECTIFICATION_STATUS_OPTIONS.find((s) => s.value === value)?.label || value;
+}
 
 export function getSeverityInfo(severity: Severity) {
   return SEVERITY_OPTIONS.find((s) => s.value === severity) || SEVERITY_OPTIONS[2];

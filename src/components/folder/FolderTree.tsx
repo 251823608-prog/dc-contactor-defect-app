@@ -50,16 +50,16 @@ export function FolderTree({ parentId, depth = 0, onItemClick }: FolderTreeProps
         <div
           key={record.id}
           className={cn(
-            'flex items-center gap-1.5 py-1 px-2 rounded-md cursor-pointer text-sm transition-colors',
+            'flex items-center gap-1.5 py-1.5 px-2 mx-2 rounded-md cursor-pointer text-[13px] transition-colors',
             selectedRecordId === record.id
-              ? 'bg-blue-50 text-blue-700'
-              : 'text-slate-600 hover:bg-slate-100'
+              ? 'bg-slate-100 text-slate-800'
+              : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
           )}
-          style={{ paddingLeft: `${12 + depth * 16 + 24}px` }}
+          style={{ paddingLeft: `${16 + depth * 14 + 20}px` }}
           onClick={() => { setSelectedRecord(record.id); onItemClick?.(); }}
         >
           <FileText className="w-3.5 h-3.5 shrink-0" />
-          <span className="truncate text-xs">{record.title}</span>
+          <span className="truncate">{record.title}</span>
         </div>
       ))}
     </div>
@@ -97,9 +97,7 @@ function FolderItem({
   const handleMenuToggle = (e: React.MouseEvent) => {
     e.stopPropagation();
     const rect = moreRef.current?.getBoundingClientRect();
-    if (rect) {
-      setMenuPos({ x: rect.right - 8, y: rect.bottom + 4 });
-    }
+    if (rect) setMenuPos({ x: rect.right - 8, y: rect.bottom + 2 });
     setMenuOpen(!menuOpen);
   };
 
@@ -107,10 +105,10 @@ function FolderItem({
     <div>
       <div
         className={cn(
-          'group flex items-center gap-1 py-1.5 px-2 rounded-md cursor-pointer text-sm transition-colors',
-          isSelected ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-100'
+          'group flex items-center gap-1 py-1.5 px-2 mx-2 rounded-md cursor-pointer text-[13px] transition-colors',
+          isSelected ? 'bg-slate-100 text-slate-800' : 'text-slate-600 hover:bg-slate-50'
         )}
-        style={{ paddingLeft: `${8 + depth * 16}px` }}
+        style={{ paddingLeft: `${8 + depth * 14}px` }}
         onClick={onSelect}
       >
         <button
@@ -118,19 +116,19 @@ function FolderItem({
           onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
         >
           <ChevronRight
-            className={cn('w-3.5 h-3.5 text-slate-400 transition-transform', expanded && 'rotate-90')}
+            className={cn('w-3 h-3 text-slate-300 transition-transform', expanded && 'rotate-90')}
           />
         </button>
 
         {expanded ? (
-          <FolderOpen className="w-4 h-4 shrink-0 text-amber-500" />
+          <FolderOpen className="w-4 h-4 shrink-0 text-slate-400" />
         ) : (
-          <Folder className="w-4 h-4 shrink-0 text-amber-500" />
+          <Folder className="w-4 h-4 shrink-0 text-slate-400" />
         )}
 
         {editing ? (
           <input
-            className="flex-1 text-xs bg-white border border-blue-300 rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-blue-400"
+            className="flex-1 text-[13px] bg-white border border-slate-200 rounded px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-slate-300"
             value={editName}
             autoFocus
             onKeyDown={(e) => {
@@ -142,17 +140,16 @@ function FolderItem({
             onClick={(e) => e.stopPropagation()}
           />
         ) : (
-          <span className="truncate text-xs font-medium">{folder.name}</span>
+          <span className="truncate font-medium">{folder.name}</span>
         )}
 
-        {/* Hover action buttons */}
         <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
             className="p-0.5 rounded hover:bg-slate-200"
             title="新建记录"
             onClick={(e) => { e.stopPropagation(); onCreateRecord(); }}
           >
-            <Plus className="w-3 h-3 text-slate-500" />
+            <Plus className="w-3 h-3 text-slate-400" />
           </button>
           <button
             ref={moreRef}
@@ -160,38 +157,36 @@ function FolderItem({
             title="更多"
             onClick={handleMenuToggle}
           >
-            <MoreHorizontal className="w-3 h-3 text-slate-500" />
+            <MoreHorizontal className="w-3 h-3 text-slate-400" />
           </button>
         </div>
       </div>
 
-      {/* Children — recursive */}
       {expanded && (
         <FolderTree parentId={folder.id} depth={depth + 1} onItemClick={onItemClick} />
       )}
 
-      {/* Context menu — rendered at trigger position */}
       {menuOpen && (
         <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)}>
           <div
-            className="absolute bg-white border border-slate-200 rounded-lg shadow-xl py-1 text-xs min-w-[130px]"
+            className="absolute bg-white border border-slate-200 rounded-lg shadow-lg py-1 text-[13px] min-w-[130px]"
             style={{ left: menuPos.x, top: menuPos.y }}
             onClick={(e) => e.stopPropagation()}
           >
             <button
-              className="w-full text-left px-3 py-1.5 hover:bg-slate-50"
+              className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-slate-600"
               onClick={() => { setEditing(true); setMenuOpen(false); }}
             >
               重命名
             </button>
             <button
-              className="w-full text-left px-3 py-1.5 hover:bg-slate-50"
+              className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-slate-600"
               onClick={() => { onCreateFolder('新建子文件夹'); setMenuOpen(false); }}
             >
               新建子文件夹
             </button>
             <button
-              className="w-full text-left px-3 py-1.5 hover:bg-red-50 text-red-600"
+              className="w-full text-left px-3 py-1.5 hover:bg-red-50 text-red-500"
               onClick={() => { onDelete(); setMenuOpen(false); }}
             >
               删除

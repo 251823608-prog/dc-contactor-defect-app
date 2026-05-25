@@ -21,6 +21,7 @@ export interface RecordItem {
   defectCategory: string;
   severity: Severity;
   disposition: Disposition;
+  rectificationStatus: RectificationStatus;
   responsiblePerson: string;
   workOrderNumber: string;
   tags: string[];
@@ -43,6 +44,7 @@ export interface TrashItem {
 
 export type Severity = 'CRITICAL' | 'MAJOR' | 'MINOR' | 'TRIVIAL';
 export type Disposition = 'SCRAP' | 'REWORK' | 'CONCESSION' | 'RETURN';
+export type RectificationStatus = 'NONE' | 'PENDING' | 'IN_PROGRESS' | 'VERIFIED';
 
 export interface DefectCategory {
   name: string;
