@@ -9,7 +9,7 @@ import { TrashPanel } from '../trash/TrashPanel';
 import { Dashboard } from '../dashboard/Dashboard';
 import { KnowledgeBase } from '../knowledge/KnowledgeBase';
 import { useStore } from '../../store/useStore';
-import { cn } from '../../lib/utils';
+import { cn, injectMetadataIntoContent } from '../../lib/utils';
 import { FileText, BarChart3, BookOpen, X, Plus, SlidersHorizontal } from 'lucide-react';
 import type { MainView } from '../../types';
 import { BarcodeScanner } from '../scanner/BarcodeScanner';
@@ -161,6 +161,18 @@ export function AppShell() {
                 recordDate: data.recordDate,
                 title: [data.workOrderNumber, data.productModel, data.recordDate].filter(Boolean).join(' '),
               });
+              // Inject scanned product model into editor content
+              if (data.productModel) {
+                const record = useStore.getState().records.find((r) => r.id === id);
+                if (record) {
+                  const updatedContent = injectMetadataIntoContent(
+                    record.content as Record<string, unknown>,
+                    'productModel',
+                    data.productModel,
+                  );
+                  useStore.getState().saveRecordContent(id, updatedContent);
+                }
+              }
             }
           }}
           onClose={() => setScanning(false)}
