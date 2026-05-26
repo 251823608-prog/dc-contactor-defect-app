@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback } from 'react';
-import { X, Camera } from 'lucide-react';
+import { X, Camera, SwitchCamera } from 'lucide-react';
 import jsQR from 'jsqr';
 import { parseBarcode, createBarcodeDetector, supportsBarcodeDetector } from '../../lib/scanner';
 
@@ -9,16 +9,34 @@ interface BarcodeScannerProps {
 }
 
 type Phase = 'idle' | 'starting' | 'scanning' | 'capturing' | 'error';
+type FacingMode = 'environment' | 'user';
+
+const FACING_LS_KEY = 'dc-scanner-facing';
+
+function loadFacingMode(): FacingMode {
+  try {
+    const v = localStorage.getItem(FACING_LS_KEY);
+    if (v === 'user' || v === 'environment') return v;
+  } catch { /* ignore */ }
+  return 'environment';
+}
+
+function saveFacingMode(mode: FacingMode) {
+  try { localStorage.setItem(FACING_LS_KEY, mode); } catch { /* ignore */ }
+}
 
 export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
   const [phase, setPhase] = useState<Phase>('idle');
   const [errorMsg, setErrorMsg] = useState('');
+  const [facingMode, setFacingMode] = useState<FacingMode>(loadFacingMode);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const stoppedRef = useRef(false);
   const rafRef = useRef(0);
   const frameCountRef = useRef(0);
+  const facingRef = useRef(facingMode);
+  facingRef.current = facingMode;
 
   const stopCamera = useCallback(() => {
     stoppedRef.current = true;
@@ -74,7 +92,7 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: { ideal: 'environment' },
+          facingMode: facingRef.current,
           width: { ideal: 1280 },
           height: { ideal: 720 },
         },
@@ -154,6 +172,14 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
     }
   }, [doScan]);
 
+  const toggleFacing = useCallback(() => {
+    setFacingMode((prev) => {
+      const next = prev === 'environment' ? 'user' : 'environment';
+      saveFacingMode(next);
+      return next;
+    });
+  }, []);
+
   const handleClose = useCallback(() => {
     stopCamera();
     onClose();
@@ -169,7 +195,7 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
   return (
     <div className="fixed inset-0 z-50 bg-black">
       {/* Header */}
-      <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-3 safe-area-top">
+      <div className="absolute top-0 left-0 right-0 z-30 flex items-center justify-between px-4 py-3 safe-area-top">
         <span className="text-white text-[15px] font-medium">扫描条码</span>
         <button className="p-2 text-white/70 hover:text-white rounded-full" onClick={handleClose}>
           <X className="w-5 h-5" />
@@ -196,8 +222,15 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
                 <Camera className="w-10 h-10 text-white/50" />
               </div>
               <p className="text-white/60 text-[14px] text-center">
-                点击下方按钮启动摄像头并开始扫描
+                选择摄像头并启动扫描
               </p>
+              <button
+                className="flex items-center gap-2 text-white/80 text-[14px] py-2 px-4 rounded-lg bg-white/10 active:bg-white/20 transition-colors"
+                onClick={toggleFacing}
+              >
+                <SwitchCamera className="w-4 h-4" />
+                <span>{facingMode === 'environment' ? '后置摄像头' : '前置摄像头'}</span>
+              </button>
             </>
           )}
           {phase === 'error' && (
@@ -228,7 +261,7 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
       </div>
 
       {/* Bottom buttons */}
-      <div className="absolute bottom-0 left-0 right-0 pb-6 pt-4 px-4 safe-area-bottom flex items-center justify-center gap-4 z-10">
+      <div className="absolute bottom-0 left-0 right-0 pb-6 pt-4 px-4 safe-area-bottom flex items-center justify-center gap-4 z-30">
         <button
           className="text-white/60 text-[14px] py-3 px-8 hover:text-white transition-colors"
           onClick={handleClose}
