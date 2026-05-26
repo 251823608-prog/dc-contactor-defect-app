@@ -256,7 +256,7 @@ export const useStore = create<AppState>()((set, get) => ({
       const template = state.records.find((r) => r.id === templateId);
       if (template) {
         newRecord = { ...template, id, recordNumber: generateRecordNumber(today, existingInFolder + 1), title: `新建记录 - ${template.title}`, folderId, recordDate: getTodayISO(), isTemplate: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), content: template.content, plainText: template.plainText };
-        set((s) => ({ records: [...s.records, newRecord], selectedRecordId: id }));
+        set((s) => s.records.find((r) => r.id === id) ? s : { records: [...s.records, newRecord], selectedRecordId: id });
         void upsertRecord(newRecord);
         return id;
       }
