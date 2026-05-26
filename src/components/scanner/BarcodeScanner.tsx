@@ -227,6 +227,12 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
               <p className="text-white/60 text-[14px] text-center">
                 点击下方按钮启动摄像头并扫描条码
               </p>
+              <button
+                className="bg-white text-slate-800 text-[16px] font-bold py-4 px-10 rounded-full active:bg-white/80 transition-colors shadow-xl shadow-white/30"
+                onClick={startCamera}
+              >
+                启动摄像头
+              </button>
             </>
           )}
           {phase === 'starting' && (
@@ -259,41 +265,31 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
         <p className="text-white/50 text-[13px] text-center">{statusText}</p>
       </div>
 
-      {/* Bottom controls */}
-      <div className="absolute bottom-0 left-0 right-0 pb-6 pt-4 px-4 safe-area-bottom flex items-center justify-center gap-4 z-40">
-        <button
-          className="text-white/60 text-[14px] py-3 px-8 hover:text-white transition-colors"
-          onClick={handleClose}
-        >
-          取消
-        </button>
-
-        {phase === 'idle' || phase === 'error' ? (
+      {/* Bottom controls — only show during active scanning */}
+      {(phase === 'scanning' || phase === 'capturing') && (
+        <div className="absolute bottom-0 left-0 right-0 pb-6 pt-4 px-4 safe-area-bottom flex items-center justify-center gap-4 z-40">
+          <button
+            className="text-white/60 text-[14px] py-3 px-8 hover:text-white transition-colors"
+            onClick={handleClose}
+          >
+            取消
+          </button>
+          {/* Torch toggle */}
+          <button
+            className="text-white/60 hover:text-white p-3 transition-colors"
+            onClick={toggleTorch}
+          >
+            <Zap className={torchOn ? 'text-yellow-400' : 'text-white/60'} style={{ width: 20, height: 20 }} />
+          </button>
+          {/* Capture button */}
           <button
             className="bg-white text-slate-800 text-[16px] font-bold py-4 px-10 rounded-full active:bg-white/80 transition-colors shadow-xl shadow-white/30"
-            onClick={startCamera}
+            onClick={handleCapture}
           >
-            启动摄像头
+            拍照识别
           </button>
-        ) : (
-          <>
-            {/* Torch toggle */}
-            <button
-              className="text-white/60 hover:text-white p-3 transition-colors"
-              onClick={toggleTorch}
-            >
-              <Zap className={torchOn ? 'text-yellow-400' : 'text-white/60'} style={{ width: 20, height: 20 }} />
-            </button>
-            {/* Capture button */}
-            <button
-              className="bg-white text-slate-800 text-[16px] font-bold py-4 px-10 rounded-full active:bg-white/80 transition-colors shadow-xl shadow-white/30"
-              onClick={handleCapture}
-            >
-              拍照识别
-            </button>
-          </>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Hidden canvas for frame analysis */}
       <canvas ref={canvasRef} className="hidden" />
