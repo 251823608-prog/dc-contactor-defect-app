@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { ChevronRight, Folder, FolderOpen, FileText, Plus, MoreHorizontal } from 'lucide-react';
+import { ChevronRight, Folder, FolderOpen, Plus, MoreHorizontal } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { cn } from '../../lib/utils';
 import type { Folder as FolderType } from '../../types';
@@ -12,11 +12,8 @@ interface FolderTreeProps {
 
 export function FolderTree({ parentId, depth = 0, onItemClick }: FolderTreeProps) {
   const folders = useStore((s) => s.folders);
-  const records = useStore((s) => s.records);
   const selectedFolderId = useStore((s) => s.selectedFolderId);
-  const selectedRecordId = useStore((s) => s.selectedRecordId);
   const setSelectedFolder = useStore((s) => s.setSelectedFolder);
-  const setSelectedRecord = useStore((s) => s.setSelectedRecord);
   const createFolder = useStore((s) => s.createFolder);
   const deleteFolder = useStore((s) => s.deleteFolder);
   const renameFolder = useStore((s) => s.renameFolder);
@@ -25,10 +22,6 @@ export function FolderTree({ parentId, depth = 0, onItemClick }: FolderTreeProps
   const childFolders = folders
     .filter((f) => f.parentId === parentId && !f.isTemplateFolder)
     .sort((a, b) => a.sortOrder - b.sortOrder);
-
-  const childRecords = records.filter(
-    (r) => r.folderId === parentId && !r.isTemplate && !r.isArchived
-  );
 
   return (
     <div>
@@ -45,22 +38,6 @@ export function FolderTree({ parentId, depth = 0, onItemClick }: FolderTreeProps
           onCreateRecord={() => { createRecord(folder.id); onItemClick?.(); }}
           onItemClick={onItemClick}
         />
-      ))}
-      {childRecords.map((record) => (
-        <div
-          key={record.id}
-          className={cn(
-            'flex items-center gap-1.5 py-1.5 px-2 mx-2 rounded-md cursor-pointer text-[13px] transition-colors',
-            selectedRecordId === record.id
-              ? 'bg-slate-100 text-slate-800'
-              : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
-          )}
-          style={{ paddingLeft: `${16 + depth * 14 + 20}px` }}
-          onClick={() => { setSelectedRecord(record.id); onItemClick?.(); }}
-        >
-          <FileText className="w-3.5 h-3.5 shrink-0" />
-          <span className="truncate">{record.title}</span>
-        </div>
       ))}
     </div>
   );
