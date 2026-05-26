@@ -104,7 +104,7 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: { ideal: 'environment' },
+          facingMode: 'environment',
           width: { ideal: 1280 },
           height: { ideal: 720 },
         },
@@ -199,7 +199,6 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
         className="absolute inset-0 w-full h-full object-cover"
         playsInline
         muted
-        autoPlay
       />
 
       {/* Scan frame guide */}
