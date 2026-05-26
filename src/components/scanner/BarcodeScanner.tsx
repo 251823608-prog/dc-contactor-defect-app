@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
-import { X, Camera, Zap } from 'lucide-react';
+import { X, Camera, Zap, SwitchCamera } from 'lucide-react';
 import jsQR from 'jsqr';
 import { parseBarcode, createBarcodeDetector, supportsBarcodeDetector } from '../../lib/scanner';
 
@@ -10,16 +10,35 @@ interface BarcodeScannerProps {
 
 type Phase = 'idle' | 'starting' | 'scanning' | 'capturing' | 'error';
 
+type FacingMode = 'environment' | 'user';
+
+const FACING_LS_KEY = 'dc-scanner-facing';
+
+function loadFacingMode(): FacingMode {
+  try {
+    const v = localStorage.getItem(FACING_LS_KEY);
+    if (v === 'user' || v === 'environment') return v;
+  } catch { /* ignore */ }
+  return 'environment';
+}
+
+function saveFacingMode(mode: FacingMode) {
+  try { localStorage.setItem(FACING_LS_KEY, mode); } catch { /* ignore */ }
+}
+
 export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
   const [phase, setPhase] = useState<Phase>('idle');
   const [errorMsg, setErrorMsg] = useState('');
   const [torchOn, setTorchOn] = useState(false);
+  const [facingMode, setFacingMode] = useState<FacingMode>(loadFacingMode);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef(0);
   const frameCountRef = useRef(0);
   const stoppedRef = useRef(false);
+  const facingRef = useRef(facingMode);
+  facingRef.current = facingMode;
   const onScanRef = useRef(onScan);
   onScanRef.current = onScan;
 
@@ -104,7 +123,7 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: 'environment',
+          facingMode: facingRef.current,
           width: { ideal: 1280 },
           height: { ideal: 720 },
         },
@@ -156,6 +175,14 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
       setPhase('scanning');
     }
   }, [tryScanFrame]);
+
+  const handleToggleFacing = useCallback(() => {
+    setFacingMode((prev) => {
+      const next = prev === 'environment' ? 'user' : 'environment';
+      saveFacingMode(next);
+      return next;
+    });
+  }, []);
 
   const handleClose = useCallback(() => {
     stopCamera();
@@ -225,8 +252,16 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
                 <Camera className="w-10 h-10 text-white/50" />
               </div>
               <p className="text-white/60 text-[14px] text-center">
-                点击下方按钮启动摄像头并扫描条码
+                选择摄像头并启动扫描
               </p>
+              {/* Camera toggle */}
+              <button
+                className="flex items-center gap-2 text-white/80 text-[14px] py-2 px-4 rounded-lg bg-white/10 active:bg-white/20 transition-colors"
+                onClick={handleToggleFacing}
+              >
+                <SwitchCamera className="w-4 h-4" />
+                <span>{facingMode === 'environment' ? '后置摄像头' : '前置摄像头'}</span>
+              </button>
               <button
                 className="bg-white text-slate-800 text-[16px] font-bold py-4 px-10 rounded-full active:bg-white/80 transition-colors shadow-xl shadow-white/30"
                 onClick={startCamera}
