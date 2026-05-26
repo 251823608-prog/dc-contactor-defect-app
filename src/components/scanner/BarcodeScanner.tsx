@@ -65,7 +65,8 @@ async function enumerateCameras(): Promise<VideoDevice[]> {
 }
 
 export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
-  const [phase, setPhase] = useState<Phase>('idle');
+  const hasStoredCamera = !!loadSavedDeviceId();
+  const [phase, setPhase] = useState<Phase>(hasStoredCamera ? 'starting' : 'idle');
   const [errorMsg, setErrorMsg] = useState('');
   const [cameras, setCameras] = useState<VideoDevice[]>([]);
   const [selectedCameraId, setSelectedCameraId] = useState<string | null>(loadSavedDeviceId);
@@ -77,16 +78,30 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
   const frameCountRef = useRef(0);
   const cameraIdRef = useRef(selectedCameraId);
   cameraIdRef.current = selectedCameraId;
+  const startCameraRef = useRef<() => Promise<void>>(async () => {});
+  const mountedRef = useRef(false);
+  const autoStartRef = useRef(hasStoredCamera);
 
-  // Enumerate cameras on mount
+  // On mount: enumerate cameras; auto-start if user has a saved camera
   useEffect(() => {
+    mountedRef.current = true;
+
+    // Enumerate in background
     enumerateCameras().then((list) => {
+      if (!mountedRef.current) return;
       setCameras(list);
-      // If saved device no longer exists, clear it
       if (selectedCameraId && !list.some((c) => c.deviceId === selectedCameraId)) {
         setSelectedCameraId(null);
       }
     });
+
+    if (hasStoredCamera) {
+      // Small delay so React commits the DOM before we start
+      const id = setTimeout(() => {
+        if (mountedRef.current) startCameraRef.current();
+      }, 100);
+      return () => clearTimeout(id);
+    }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const stopCamera = useCallback(() => {
@@ -198,6 +213,12 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
       };
       rafRef.current = requestAnimationFrame(tick);
     } catch (e) {
+      if (autoStartRef.current) {
+        // Auto-start failed — fall back to idle screen so user can tap manually
+        autoStartRef.current = false;
+        setPhase('idle');
+        return;
+      }
       const msg = String(e);
       if (msg.includes('NotAllowed') || msg.includes('Permission')) {
         setErrorMsg('相机权限被拒绝，请在浏览器设置中允许相机访问后刷新重试');
@@ -211,6 +232,7 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
       setPhase('error');
     }
   }, [doScan]);
+  startCameraRef.current = startCamera;
 
   const handleCapture = useCallback(async () => {
     const video = videoRef.current;
@@ -268,9 +290,17 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
         />
       </div>
 
-      {/* Idle / error overlay */}
-      {(phase === 'idle' || phase === 'error') && (
+      {/* Idle / starting / error overlay */}
+      {(phase === 'idle' || phase === 'starting' || phase === 'error') && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black/80 z-20 px-6 overflow-y-auto">
+          {phase === 'starting' && (
+            <>
+              <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center shrink-0">
+                <div className="w-6 h-6 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+              </div>
+              <p className="text-white/60 text-[13px] text-center">正在启动摄像头...</p>
+            </>
+          )}
           {phase === 'idle' && (
             <>
               <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center shrink-0">
