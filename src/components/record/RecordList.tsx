@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useIsDesktop } from '../../lib/useIsDesktop';
 import { useStore } from '../../store/useStore';
 import {
   FileText, FolderOpen, Download, Trash2, X, CheckSquare, Square,
@@ -20,6 +21,7 @@ export function RecordList() {
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const isDesktop = useIsDesktop();
 
   const folderPath: { name: string }[] = [];
   let current = selectedFolderId ? folders.find((f) => f.id === selectedFolderId) : undefined;
@@ -193,12 +195,10 @@ export function RecordList() {
             <FileText className="w-10 h-10 mb-2 opacity-30" />
             <p className="text-[13px]">暂无记录</p>
           </div>
-        ) : (
-          <>
-            {/* Desktop table view */}
-            <div className="hidden md:block">
-              <table className="w-full">
-                <thead>
+        ) : isDesktop ? (
+          /* Desktop table view */
+          <table className="w-full">
+            <thead>
                   <tr className="border-b border-slate-50 sticky top-0 bg-white">
                     <th className="w-10 px-3 py-2.5">
                       <button onClick={toggleSelectAll} className="text-slate-300 hover:text-slate-500">
@@ -283,10 +283,9 @@ export function RecordList() {
                   })}
                 </tbody>
               </table>
-            </div>
-
-            {/* Mobile card view */}
-            <div className="md:hidden divide-y divide-slate-50">
+        ) : (
+          /* Mobile card view */
+          <div className="divide-y divide-slate-50">
               {records.map((r) => {
                 const severity = getSeverityInfo(r.severity);
                 const isSelected = selectedIds.has(r.id);
@@ -338,8 +337,7 @@ export function RecordList() {
                   </div>
                 );
               })}
-            </div>
-          </>
+          </div>
         )}
       </div>
     </div>

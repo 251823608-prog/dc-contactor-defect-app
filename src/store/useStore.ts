@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Folder, RecordItem, TrashItem, KnowledgeEntry, ViewMode, MainView } from '../types';
 import { MOCK_FOLDERS, MOCK_RECORDS } from '../data/mock';
 import { generateId, generateRecordNumber, getTodayISO, extractPlainText } from '../lib/utils';
+import { isSupabaseConfigured } from '../lib/supabase';
 import {
   loadAllData, upsertFolder, deleteFolderDb,
   upsertRecord, deleteRecordDb,
@@ -105,6 +106,27 @@ interface AppState {
 let _lastCreateTime = 0;
 const CREATE_GUARD_MS = 600;
 
+const LS_KEY = 'dc-defect-v2-state';
+
+function loadFromLS() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return null;
+}
+
+function saveToLS(state: { folders: unknown; records: unknown; trash: unknown; knowledgeEntries: unknown }) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify({
+      folders: state.folders,
+      records: state.records,
+      trash: state.trash,
+      knowledgeEntries: state.knowledgeEntries,
+    }));
+  } catch { /* ignore */ }
+}
+
 export const useStore = create<AppState>()((set, get) => ({
   initialized: false,
   folders: MOCK_FOLDERS,
@@ -132,8 +154,15 @@ export const useStore = create<AppState>()((set, get) => ({
       console.log('[init] Reload result:', fresh ? `records=${fresh.records.length}` : 'NULL');
       if (fresh) set({ ...fresh });
     } else {
-      console.log('[init] Supabase unavailable, using mock data');
-      set({ initialized: true });
+      console.log('[init] Supabase unavailable, trying localStorage...');
+      const saved = loadFromLS();
+      if (saved) {
+        console.log('[init] Loaded from localStorage, records:', (saved.records as unknown[]).length);
+        set({ ...saved, initialized: true });
+      } else {
+        console.log('[init] No localStorage data, using mock data');
+        set({ initialized: true });
+      }
     }
     console.log('[init] Done. State records:', get().records.length);
 
@@ -416,3 +445,10 @@ export const useStore = create<AppState>()((set, get) => ({
     return filtered;
   },
 }));
+
+// Auto-save to localStorage when Supabase is not configured
+useStore.subscribe((state) => {
+  if (!isSupabaseConfigured() && state.initialized) {
+    saveToLS(state);
+  }
+});
