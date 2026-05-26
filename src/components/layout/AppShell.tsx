@@ -97,17 +97,14 @@ export function AppShell() {
         {/* Main content */}
         {mainView === 'records' ? (
           <div className="flex-1 flex overflow-hidden">
-            {/* Record list - desktop */}
-            <div className="w-[420px] min-w-[300px] border-r border-slate-100 bg-white overflow-hidden flex-col desktop-only">
+            {/* Record list — single responsive instance */}
+            <div className={cn(
+              'bg-white overflow-hidden flex flex-col',
+              'md:w-[420px] md:min-w-[300px] md:border-r md:border-slate-100',
+              selectedRecordId ? 'hidden md:flex' : 'flex-1'
+            )}>
               <RecordList />
             </div>
-
-            {/* Record list - mobile */}
-            {!selectedRecordId && (
-              <div className="flex-1 bg-white overflow-hidden flex flex-col mobile-only">
-                <RecordList />
-              </div>
-            )}
 
             {/* Editor */}
             <div className={cn(
