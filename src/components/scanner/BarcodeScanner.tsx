@@ -1,5 +1,5 @@
-import { useRef, useState, useCallback } from 'react';
-import { X, Camera } from 'lucide-react';
+import { useRef, useState, useCallback, useEffect } from 'react';
+import { X, Camera, Zap } from 'lucide-react';
 import jsQR from 'jsqr';
 import { parseBarcode, createBarcodeDetector, supportsBarcodeDetector } from '../../lib/scanner';
 
@@ -13,12 +13,15 @@ type Phase = 'idle' | 'starting' | 'scanning' | 'capturing' | 'error';
 export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
   const [phase, setPhase] = useState<Phase>('idle');
   const [errorMsg, setErrorMsg] = useState('');
+  const [torchOn, setTorchOn] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const stoppedRef = useRef(false);
   const rafRef = useRef(0);
   const frameCountRef = useRef(0);
+  const stoppedRef = useRef(false);
+  const onScanRef = useRef(onScan);
+  onScanRef.current = onScan;
 
   const stopCamera = useCallback(() => {
     stoppedRef.current = true;
@@ -27,46 +30,73 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     }
+    setTorchOn(false);
   }, []);
 
-  const doScan = useCallback(async (imageData: ImageData, rawCanvas: HTMLCanvasElement): Promise<boolean> => {
+  const tryScanFrame = useCallback((): boolean => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || video.videoWidth === 0) return false;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return false;
+
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+    // 1) jsQR for QR codes
     const qrResult = jsQR(imageData.data, imageData.width, imageData.height);
     if (qrResult) {
       const parsed = parseBarcode(qrResult.data);
       if (parsed) {
         stopCamera();
         navigator.vibrate?.(200);
-        onScan(parsed);
+        onScanRef.current(parsed);
         return true;
       }
-      setPhase('scanning');
       return false;
     }
 
+    // 2) BarcodeDetector API for 1D barcodes
     if (supportsBarcodeDetector()) {
-      try {
-        const detector = createBarcodeDetector();
-        if (detector) {
-          const bitmap = await createImageBitmap(rawCanvas);
-          const barcodes = await detector.detect(bitmap) as Array<{ rawValue: string }>;
-          bitmap.close();
-          if (barcodes.length > 0 && !stoppedRef.current) {
-            const parsed = parseBarcode(barcodes[0].rawValue);
-            if (parsed) {
-              stopCamera();
-              navigator.vibrate?.(200);
-              onScan(parsed);
-              return true;
+      const detector = createBarcodeDetector();
+      if (detector) {
+        // BarcodeDetector needs an ImageBitmap — create from canvas
+        canvas.toBlob(async (blob) => {
+          if (!blob || stoppedRef.current) return;
+          try {
+            const bitmap = await createImageBitmap(blob);
+            if (stoppedRef.current) { bitmap.close(); return; }
+            const barcodes = await detector.detect(bitmap) as Array<{ rawValue: string }>;
+            bitmap.close();
+            if (barcodes.length > 0 && !stoppedRef.current) {
+              const parsed = parseBarcode(barcodes[0].rawValue);
+              if (parsed) {
+                stopCamera();
+                navigator.vibrate?.(200);
+                onScanRef.current(parsed);
+              }
             }
-          }
-        }
-      } catch { /* BarcodeDetector not supported or failed */ }
+          } catch { /* BarcodeDetector failed */ }
+        }, 'image/png');
+      }
     }
 
     return false;
-  }, [onScan, stopCamera]);
+  }, [stopCamera]);
 
-  /** Called only from a direct user tap — satisfies mobile gesture requirement */
+  const scanningLoop = useCallback(() => {
+    if (stoppedRef.current) return;
+    frameCountRef.current++;
+    // Scan every 5th frame to avoid overloading the main thread
+    if (frameCountRef.current % 5 === 0) {
+      tryScanFrame();
+    }
+    rafRef.current = requestAnimationFrame(scanningLoop);
+  }, [tryScanFrame]);
+
   const startCamera = useCallback(async () => {
     setPhase('starting');
     setErrorMsg('');
@@ -87,39 +117,21 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
 
       streamRef.current = stream;
 
-      // Attach to visible video element
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+      const video = videoRef.current;
+      if (!video) {
+        stream.getTracks().forEach((t) => t.stop());
+        setErrorMsg('内部错误：视频元素未找到');
+        setPhase('error');
+        return;
       }
 
-      // Off-screen video for frame capture
-      const offVideo = document.createElement('video');
-      offVideo.setAttribute('playsinline', '');
-      offVideo.muted = true;
-      offVideo.srcObject = stream;
-      await offVideo.play();
-
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d')!;
+      video.srcObject = stream;
+      await video.play();
 
       setPhase('scanning');
-
-      const tick = () => {
-        if (stoppedRef.current) return;
-
-        frameCountRef.current++;
-        if (frameCountRef.current % 3 === 0 && offVideo.videoWidth > 0) {
-          canvas.width = offVideo.videoWidth;
-          canvas.height = offVideo.videoHeight;
-          ctx.drawImage(offVideo, 0, 0, canvas.width, canvas.height);
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          doScan(imageData, canvas);
-        }
-
-        rafRef.current = requestAnimationFrame(tick);
-      };
-      rafRef.current = requestAnimationFrame(tick);
+      stoppedRef.current = false;
+      frameCountRef.current = 0;
+      rafRef.current = requestAnimationFrame(scanningLoop);
     } catch (e) {
       const msg = String(e);
       if (msg.includes('NotAllowed') || msg.includes('Permission')) {
@@ -133,71 +145,97 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
       }
       setPhase('error');
     }
-  }, [doScan]);
+  }, [scanningLoop]);
 
-  // Manual capture button
   const handleCapture = useCallback(async () => {
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas || !video.videoWidth) return;
-
     setPhase('capturing');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d')!;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-    const found = await doScan(imageData, canvas);
+    // Small delay to show capturing state
+    await new Promise((r) => setTimeout(r, 150));
+    const found = tryScanFrame();
     if (!found) {
       setPhase('scanning');
     }
-  }, [doScan]);
+  }, [tryScanFrame]);
 
   const handleClose = useCallback(() => {
     stopCamera();
     onClose();
   }, [stopCamera, onClose]);
 
+  const toggleTorch = useCallback(async () => {
+    if (!streamRef.current) return;
+    const videoTrack = streamRef.current.getVideoTracks()[0];
+    if (!videoTrack) return;
+    try {
+      await videoTrack.applyConstraints({
+        // @ts-expect-error: torch is a non-standard constraint
+        advanced: [{ torch: !torchOn }],
+      } as MediaTrackConstraints);
+      setTorchOn(!torchOn);
+    } catch {
+      // Torch not supported on this device
+    }
+  }, [torchOn]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      stopCamera();
+    };
+  }, [stopCamera]);
+
   const statusText =
     phase === 'idle' ? '点击按钮启动摄像头'
     : phase === 'starting' ? '正在启动摄像头...'
-    : phase === 'scanning' ? '扫描中...'
+    : phase === 'scanning' ? '扫描中 — 将条码对准框内'
     : phase === 'capturing' ? '正在识别...'
     : '';
 
   return (
     <div className="fixed inset-0 z-50 bg-black">
-      {/* Header */}
-      <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-3 safe-area-top">
+      {/* Video — always rendered, visible when camera is on */}
+      <video
+        ref={videoRef}
+        className="absolute inset-0 w-full h-full object-cover"
+        playsInline
+        muted
+        autoPlay
+      />
+
+      {/* Scan frame guide */}
+      {(phase === 'scanning' || phase === 'capturing') && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+          <div className="w-64 h-64 border-2 border-white/60 rounded-2xl" />
+        </div>
+      )}
+
+      {/* Top bar */}
+      <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 py-3 safe-area-top">
         <span className="text-white text-[15px] font-medium">扫描条码</span>
         <button className="p-2 text-white/70 hover:text-white rounded-full" onClick={handleClose}>
           <X className="w-5 h-5" />
         </button>
       </div>
 
-      {/* Video area */}
-      <div className="absolute inset-0">
-        <video
-          ref={videoRef}
-          className="w-full h-full object-cover"
-          playsInline
-          muted
-          autoPlay
-        />
-      </div>
-
-      {/* Idle / error overlay */}
-      {(phase === 'idle' || phase === 'error') && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 bg-black/80 z-20 px-8">
+      {/* Idle / Starting / Error overlay */}
+      {(phase === 'idle' || phase === 'starting' || phase === 'error') && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 bg-black/85 z-30 px-8">
           {phase === 'idle' && (
             <>
               <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center">
                 <Camera className="w-10 h-10 text-white/50" />
               </div>
               <p className="text-white/60 text-[14px] text-center">
-                点击下方按钮启动摄像头并开始扫描
+                点击下方按钮启动摄像头并扫描条码
               </p>
+            </>
+          )}
+          {phase === 'starting' && (
+            <>
+              <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center">
+                <div className="w-6 h-6 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+              </div>
+              <p className="text-white/60 text-[14px] text-center">正在启动摄像头...</p>
             </>
           )}
           {phase === 'error' && (
@@ -205,7 +243,7 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
               <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center">
                 <X className="w-10 h-10 text-red-400/70" />
               </div>
-              <p className="text-white/80 text-[14px] text-center">{errorMsg}</p>
+              <p className="text-white/80 text-[14px] text-center max-w-xs">{errorMsg}</p>
               <button
                 className="bg-white text-slate-800 text-[15px] font-bold py-3 px-8 rounded-full active:bg-white/80"
                 onClick={startCamera}
@@ -217,18 +255,13 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
         </div>
       )}
 
-      {/* Frame guide */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className="w-64 h-64 border-2 border-white/60 rounded-2xl" />
-      </div>
-
       {/* Status text */}
-      <div className="absolute bottom-36 left-4 right-4 pointer-events-none">
-        <p className="text-white/60 text-[13px] text-center">{statusText}</p>
+      <div className="absolute top-20 left-4 right-4 pointer-events-none z-10">
+        <p className="text-white/50 text-[13px] text-center">{statusText}</p>
       </div>
 
-      {/* Bottom buttons */}
-      <div className="absolute bottom-0 left-0 right-0 pb-6 pt-4 px-4 safe-area-bottom flex items-center justify-center gap-4 z-10">
+      {/* Bottom controls */}
+      <div className="absolute bottom-0 left-0 right-0 pb-6 pt-4 px-4 safe-area-bottom flex items-center justify-center gap-4 z-20">
         <button
           className="text-white/60 text-[14px] py-3 px-8 hover:text-white transition-colors"
           onClick={handleClose}
@@ -244,15 +277,26 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
             启动摄像头
           </button>
         ) : (
-          <button
-            className="bg-white text-slate-800 text-[16px] font-bold py-4 px-10 rounded-full active:bg-white/80 transition-colors shadow-xl shadow-white/30"
-            onClick={handleCapture}
-          >
-            拍照识别
-          </button>
+          <>
+            {/* Torch toggle */}
+            <button
+              className="text-white/60 hover:text-white p-3 transition-colors"
+              onClick={toggleTorch}
+            >
+              <Zap className={torchOn ? 'text-yellow-400' : 'text-white/60'} style={{ width: 20, height: 20 }} />
+            </button>
+            {/* Capture button */}
+            <button
+              className="bg-white text-slate-800 text-[16px] font-bold py-4 px-10 rounded-full active:bg-white/80 transition-colors shadow-xl shadow-white/30"
+              onClick={handleCapture}
+            >
+              拍照识别
+            </button>
+          </>
         )}
       </div>
 
+      {/* Hidden canvas for frame analysis */}
       <canvas ref={canvasRef} className="hidden" />
     </div>
   );
