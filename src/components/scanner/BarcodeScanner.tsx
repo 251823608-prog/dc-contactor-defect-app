@@ -209,7 +209,7 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
       )}
 
       {/* Top bar */}
-      <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 py-3 safe-area-top">
+      <div className="absolute top-0 left-0 right-0 z-40 flex items-center justify-between px-4 py-3 safe-area-top">
         <span className="text-white text-[15px] font-medium">扫描条码</span>
         <button className="p-2 text-white/70 hover:text-white rounded-full" onClick={handleClose}>
           <X className="w-5 h-5" />
@@ -260,7 +260,7 @@ export function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
       </div>
 
       {/* Bottom controls */}
-      <div className="absolute bottom-0 left-0 right-0 pb-6 pt-4 px-4 safe-area-bottom flex items-center justify-center gap-4 z-20">
+      <div className="absolute bottom-0 left-0 right-0 pb-6 pt-4 px-4 safe-area-bottom flex items-center justify-center gap-4 z-40">
         <button
           className="text-white/60 text-[14px] py-3 px-8 hover:text-white transition-colors"
           onClick={handleClose}
