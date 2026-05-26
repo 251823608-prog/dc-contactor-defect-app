@@ -102,6 +102,9 @@ interface AppState {
   getFilteredRecords: () => RecordItem[];
 }
 
+let _lastCreateTime = 0;
+const CREATE_GUARD_MS = 600;
+
 export const useStore = create<AppState>()((set, get) => ({
   initialized: false,
   folders: MOCK_FOLDERS,
@@ -246,6 +249,10 @@ export const useStore = create<AppState>()((set, get) => ({
 
   // ── Record Actions ──
   createRecord: (folderId, templateId) => {
+    const now = Date.now();
+    if (now - _lastCreateTime < CREATE_GUARD_MS) return '';
+    _lastCreateTime = now;
+
     const state = get();
     const id = generateId();
     const today = new Date();
@@ -286,7 +293,7 @@ export const useStore = create<AppState>()((set, get) => ({
       tags: [], isArchived: false, isTemplate: false,
       createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
     };
-    set((s) => ({ records: [...s.records, newRecord], selectedRecordId: id }));
+    set((s) => s.records.find((r) => r.id === id) ? s : { records: [...s.records, newRecord], selectedRecordId: id });
     void upsertRecord(newRecord);
     return id;
   },
