@@ -87,6 +87,7 @@ interface AppState {
   saveRecordContent: (id: string, content: Record<string, unknown>) => void;
   restoreFromTrash: (id: string) => void;
   permanentlyDelete: (id: string) => void;
+  clearAllTrash: () => void;
   addKnowledgeEntry: (entry: Omit<KnowledgeEntry, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateKnowledgeEntry: (id: string, data: Partial<Omit<KnowledgeEntry, 'id' | 'createdAt'>>) => void;
   deleteKnowledgeEntry: (id: string) => void;
@@ -350,6 +351,12 @@ export const useStore = create<AppState>()((set, get) => ({
   permanentlyDelete: (id) => {
     set((s) => ({ trash: s.trash.filter((t) => t.id !== id) }));
     void deleteTrashItemDb(id);
+  },
+
+  clearAllTrash: () => {
+    const { trash } = get();
+    for (const item of trash) void deleteTrashItemDb(item.id);
+    set({ trash: [] });
   },
 
   // ── Knowledge Actions ──
