@@ -144,9 +144,29 @@ export const useStore = create<AppState>()((set, get) => ({
   // ── Init ──
   init: async () => {
     console.log('[init] Starting...');
-    const data = await loadAllData();
+    let data = await loadAllData();
     console.log('[init] loadAllData result:', data ? `folders=${data.folders.length} records=${data.records.length}` : 'NULL');
     if (data) {
+      // Supabase is available — migrate any unsynced localStorage data
+      const saved = loadFromLS();
+      if (saved) {
+        console.log('[init] Found localStorage data, migrating to Supabase...');
+        try {
+          await Promise.all([
+            ...(saved.folders as Folder[]).map((f) => upsertFolder(f)),
+            ...(saved.records as RecordItem[]).map((r) => upsertRecord(r)),
+            ...(saved.knowledgeEntries as KnowledgeEntry[]).map((k: KnowledgeEntry) => upsertKnowledgeEntry(k)),
+            ...(saved.trash as TrashItem[]).map((t: TrashItem) => upsertTrashItem(t)),
+          ]);
+          console.log('[init] Migration complete, clearing localStorage');
+          localStorage.removeItem(LS_KEY);
+          // Reload merged data from Supabase
+          const merged = await loadAllData();
+          if (merged) data = merged;
+        } catch (e) {
+          console.warn('[init] Migration partial — some data may not have synced', e);
+        }
+      }
       set({ ...data, initialized: true });
       console.log('[init] State set from Supabase, seeding...');
       await seedIfEmpty();
