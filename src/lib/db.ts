@@ -161,6 +161,28 @@ async function tryOp(op: () => PromiseLike<unknown>): Promise<void> {
 export async function upsertFolder(f: Folder): Promise<void> {
   await tryOp(() => supabase.from('folders').upsert(folderToRow(f)));
 }
+
+// Migration ops — errors propagate so caller can decide whether to clear localStorage
+export async function migrateFolder(f: Folder): Promise<void> {
+  if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+  const { error } = await supabase.from('folders').upsert(folderToRow(f));
+  if (error) throw error;
+}
+export async function migrateRecord(r: RecordItem): Promise<void> {
+  if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+  const { error } = await supabase.from('records').upsert(recordToRow(r));
+  if (error) throw error;
+}
+export async function migrateKnowledgeEntry(e: KnowledgeEntry): Promise<void> {
+  if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+  const { error } = await supabase.from('knowledge_entries').upsert(knowledgeToRow(e));
+  if (error) throw error;
+}
+export async function migrateTrashItem(t: TrashItem): Promise<void> {
+  if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
+  const { error } = await supabase.from('trash').upsert(trashToRow(t));
+  if (error) throw error;
+}
 export async function deleteFolderDb(id: string): Promise<void> {
   await tryOp(() => supabase.from('folders').delete().eq('id', id));
 }

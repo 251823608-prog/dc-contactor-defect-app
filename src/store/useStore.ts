@@ -9,6 +9,7 @@ import {
   upsertKnowledgeEntry, deleteKnowledgeEntryDb,
   upsertTrashItem, deleteTrashItemDb,
   subscribeToChanges, seedIfEmpty,
+  migrateFolder, migrateRecord, migrateKnowledgeEntry, migrateTrashItem,
 } from '../lib/db';
 
 const MOCK_KNOWLEDGE_ENTRIES: KnowledgeEntry[] = [
@@ -116,6 +117,11 @@ function loadFromLS() {
   return null;
 }
 
+function dedupeBy<T extends { id: string }>(a: T[], b: T[]): T[] {
+  const ids = new Set(b.map((x) => x.id));
+  return [...b, ...a.filter((x) => !ids.has(x.id))];
+}
+
 function saveToLS(state: { folders: unknown; records: unknown; trash: unknown; knowledgeEntries: unknown }) {
   try {
     localStorage.setItem(LS_KEY, JSON.stringify({
@@ -152,19 +158,28 @@ export const useStore = create<AppState>()((set, get) => ({
       if (saved) {
         console.log('[init] Found localStorage data, migrating to Supabase...');
         try {
+          // Use migrate* functions (not upsert*) so errors propagate — if any fail, we keep localStorage
           await Promise.all([
-            ...(saved.folders as Folder[]).map((f) => upsertFolder(f)),
-            ...(saved.records as RecordItem[]).map((r) => upsertRecord(r)),
-            ...(saved.knowledgeEntries as KnowledgeEntry[]).map((k: KnowledgeEntry) => upsertKnowledgeEntry(k)),
-            ...(saved.trash as TrashItem[]).map((t: TrashItem) => upsertTrashItem(t)),
+            ...(saved.folders as Folder[]).map((f) => migrateFolder(f)),
+            ...(saved.records as RecordItem[]).map((r) => migrateRecord(r)),
+            ...(saved.knowledgeEntries as KnowledgeEntry[]).map((k: KnowledgeEntry) => migrateKnowledgeEntry(k)),
+            ...(saved.trash as TrashItem[]).map((t: TrashItem) => migrateTrashItem(t)),
           ]);
+          // Only clear localStorage after confirmed success
           console.log('[init] Migration complete, clearing localStorage');
           localStorage.removeItem(LS_KEY);
           // Reload merged data from Supabase
           const merged = await loadAllData();
           if (merged) data = merged;
         } catch (e) {
-          console.warn('[init] Migration partial — some data may not have synced', e);
+          console.warn('[init] Migration failed — localStorage preserved', e);
+          // Merge Supabase data with localStorage data so nothing is lost
+          data = {
+            folders: dedupeBy(saved.folders as Folder[], data.folders),
+            records: dedupeBy(saved.records as RecordItem[], data.records),
+            knowledgeEntries: dedupeBy(saved.knowledgeEntries as KnowledgeEntry[], data.knowledgeEntries),
+            trash: dedupeBy(saved.trash as TrashItem[], data.trash),
+          };
         }
       }
       set({ ...data, initialized: true });
