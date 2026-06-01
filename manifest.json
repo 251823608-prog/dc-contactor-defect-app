@@ -1,0 +1,20 @@
+{
+  "name": "不良品处理系统",
+  "short_name": "不良品处理",
+  "description": "直流接触器不良品处理记录系统",
+  "start_url": "/dc-contactor-defect-app/",
+  "scope": "/dc-contactor-defect-app/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#6366f1",
+  "theme_color": "#6366f1",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/dc-contactor-defect-app/favicon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
