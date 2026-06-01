@@ -13,6 +13,7 @@ import { cn, injectMetadataIntoContent } from '../../lib/utils';
 import { FileText, BarChart3, BookOpen, X, Plus, SlidersHorizontal } from 'lucide-react';
 import type { MainView } from '../../types';
 import { BarcodeScanner } from '../scanner/BarcodeScanner';
+import { DiagnosticsBar } from './DiagnosticsBar';
 
 const tabs: { key: MainView; label: string; icon: React.ReactNode }[] = [
   { key: 'records', label: '记录', icon: <FileText className="w-3.5 h-3.5" /> },
@@ -204,6 +205,7 @@ export function AppShell() {
       )}
 
       <TrashPanel />
+      <DiagnosticsBar />
       <MobileNav onScanClick={() => setScanning(true)} />
     </div>
   );

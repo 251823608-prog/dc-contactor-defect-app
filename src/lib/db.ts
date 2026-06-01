@@ -1,6 +1,7 @@
 import type { Folder, RecordItem, KnowledgeEntry, TrashItem } from '../types';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { MOCK_FOLDERS, MOCK_RECORDS } from '../data/mock';
+import { diagLog } from './diagnostics';
 
 // Mock knowledge entries for seeding
 const MOCK_KNOWLEDGE_ENTRIES: KnowledgeEntry[] = [
@@ -154,8 +155,8 @@ export async function loadAllData(): Promise<{
 
 // ── Sync operations ──
 async function tryOp(op: () => PromiseLike<unknown>): Promise<void> {
-  if (!isSupabaseConfigured()) return;
-  try { await op(); } catch (e) { console.error('Supabase op failed:', e); }
+  if (!isSupabaseConfigured()) { diagLog('tryOp: Supabase NOT configured — write SKIPPED'); return; }
+  try { await op(); } catch (e) { diagLog(`tryOp: write FAILED — ${String(e).substring(0, 100)}`); console.error('Supabase op failed:', e); }
 }
 
 export async function upsertFolder(f: Folder): Promise<void> {
@@ -166,22 +167,22 @@ export async function upsertFolder(f: Folder): Promise<void> {
 export async function migrateFolder(f: Folder): Promise<void> {
   if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
   const { error } = await supabase.from('folders').upsert(folderToRow(f));
-  if (error) throw error;
+  if (error) { diagLog(`migrateFolder FAILED: ${error.message}`); throw error; }
 }
 export async function migrateRecord(r: RecordItem): Promise<void> {
   if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
   const { error } = await supabase.from('records').upsert(recordToRow(r));
-  if (error) throw error;
+  if (error) { diagLog(`migrateRecord FAILED: ${error.message}`); throw error; }
 }
 export async function migrateKnowledgeEntry(e: KnowledgeEntry): Promise<void> {
   if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
   const { error } = await supabase.from('knowledge_entries').upsert(knowledgeToRow(e));
-  if (error) throw error;
+  if (error) { diagLog(`migrateKnowledge FAILED: ${error.message}`); throw error; }
 }
 export async function migrateTrashItem(t: TrashItem): Promise<void> {
   if (!isSupabaseConfigured()) throw new Error('Supabase not configured');
   const { error } = await supabase.from('trash').upsert(trashToRow(t));
-  if (error) throw error;
+  if (error) { diagLog(`migrateTrash FAILED: ${error.message}`); throw error; }
 }
 export async function deleteFolderDb(id: string): Promise<void> {
   await tryOp(() => supabase.from('folders').delete().eq('id', id));

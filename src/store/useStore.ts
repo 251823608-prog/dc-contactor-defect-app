@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Folder, RecordItem, TrashItem, KnowledgeEntry, ViewMode, MainView } from '../types';
 import { MOCK_FOLDERS, MOCK_RECORDS } from '../data/mock';
 import { generateId, generateRecordNumber, getTodayISO, extractPlainText } from '../lib/utils';
+import { diagLog } from '../lib/diagnostics';
 import {
   loadAllData, upsertFolder, deleteFolderDb,
   upsertRecord, deleteRecordDb,
@@ -150,10 +151,11 @@ export const useStore = create<AppState>()((set, get) => ({
   init: async () => {
     console.log('[init] Starting...');
     let data = await loadAllData();
-    console.log('[init] loadAllData result:', data ? `folders=${data.folders.length} records=${data.records.length}` : 'NULL');
+    diagLog(`init: supabase=${data ? 'AVAILABLE' : 'UNAVAILABLE'} records=${data ? data.records.length : 0}`);
     if (data) {
       // Supabase is available — migrate any unsynced localStorage data
       const saved = loadFromLS();
+      diagLog(`init: localStorage=${saved ? `FOUND records=${(saved.records as unknown[]).length}` : 'EMPTY'}`);
       if (saved) {
         console.log('[init] Found localStorage data, migrating to Supabase...');
         try {
@@ -166,11 +168,13 @@ export const useStore = create<AppState>()((set, get) => ({
           ]);
           // Keep localStorage as backup — subscribe will keep it in sync
           console.log('[init] Migration complete');
+          diagLog('init: migration SUCCESS');
           // Reload merged data from Supabase
           const merged = await loadAllData();
           if (merged) data = merged;
         } catch (e) {
           console.warn('[init] Migration failed — localStorage preserved', e);
+          diagLog(`init: migration FAILED — ${String(e).substring(0, 100)}`);
           // Merge Supabase data with localStorage data so nothing is lost
           data = {
             folders: dedupeBy(saved.folders as Folder[], data.folders),
@@ -357,13 +361,14 @@ export const useStore = create<AppState>()((set, get) => ({
     };
     set((s) => s.records.find((r) => r.id === id) ? s : { records: [...s.records, newRecord], selectedRecordId: id });
     void upsertRecord(newRecord);
+    diagLog(`createRecord: id=${id} title=${newRecord.title.substring(0, 30)}`);
     return id;
   },
 
   updateRecord: (id, data) => {
     set((s) => ({ records: s.records.map((r) => r.id === id ? { ...r, ...data, updatedAt: new Date().toISOString() } : r) }));
     const updated = get().records.find((r) => r.id === id);
-    if (updated) void upsertRecord(updated);
+    if (updated) { void upsertRecord(updated); diagLog(`updateRecord: id=${id}`); }
   },
 
   batchUpdateRecords: (ids, data) => {
