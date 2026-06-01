@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import type { Folder, RecordItem, TrashItem, KnowledgeEntry, ViewMode, MainView } from '../types';
 import { MOCK_FOLDERS, MOCK_RECORDS } from '../data/mock';
 import { generateId, generateRecordNumber, getTodayISO, extractPlainText } from '../lib/utils';
-import { isSupabaseConfigured } from '../lib/supabase';
 import {
   loadAllData, upsertFolder, deleteFolderDb,
   upsertRecord, deleteRecordDb,
