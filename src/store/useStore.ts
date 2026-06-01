@@ -165,9 +165,8 @@ export const useStore = create<AppState>()((set, get) => ({
             ...(saved.knowledgeEntries as KnowledgeEntry[]).map((k: KnowledgeEntry) => migrateKnowledgeEntry(k)),
             ...(saved.trash as TrashItem[]).map((t: TrashItem) => migrateTrashItem(t)),
           ]);
-          // Only clear localStorage after confirmed success
-          console.log('[init] Migration complete, clearing localStorage');
-          localStorage.removeItem(LS_KEY);
+          // Keep localStorage as backup — subscribe will keep it in sync
+          console.log('[init] Migration complete');
           // Reload merged data from Supabase
           const merged = await loadAllData();
           if (merged) data = merged;
