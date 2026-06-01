@@ -481,9 +481,9 @@ export const useStore = create<AppState>()((set, get) => ({
   },
 }));
 
-// Auto-save to localStorage when Supabase is not configured
+// Always save to localStorage as fallback — prevents data loss if Supabase write fails
 useStore.subscribe((state) => {
-  if (!isSupabaseConfigured() && state.initialized) {
+  if (state.initialized) {
     saveToLS(state);
   }
 });
